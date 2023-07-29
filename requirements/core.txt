@@ -1,0 +1,4 @@
+recommenders==1.1.1
+deepctr_torch==0.2.9
+fire==0.5.0
+loguru==0.7.0
