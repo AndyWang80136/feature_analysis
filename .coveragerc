@@ -1,0 +1,11 @@
+[report]
+exclude_lines = 
+    # skip pass on abstract class and abstract method
+    pass
+    # skip __repr__, __init__
+    def __repr__
+    def __init__
+show_missing = false
+
+[run]
+omit = */__init__.py
