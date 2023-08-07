@@ -3,3 +3,5 @@
 *.hypothesis
 **/__pycache__
 **/coverage.json
+**/hyperparam_result.json
+**/logs/
