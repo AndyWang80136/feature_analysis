@@ -1,7 +1,3 @@
-from pathlib import Path
-
-import pytest
-
 from feature_analysis.process import train_process
 
 
