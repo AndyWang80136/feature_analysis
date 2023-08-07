@@ -8,7 +8,7 @@ import pytest
 from feature_analysis.data import (CATEGORICAL, ML100K, NUMERICAL,
                                    RandomDataset, load_dataset)
 
-DATA_DIR = Path(__file__).parent.parent.joinpath('data')
+DATA = Path(__file__).parent.parent.joinpath('data').joinpath('ml-100k.zip')
 
 
 def test_load_dataset():
@@ -18,27 +18,27 @@ def test_load_dataset():
 
 class TestML100K:
 
-    @pytest.mark.skipif(not DATA_DIR.exists(), reason=f'{DATA_DIR} not exists')
+    @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def setup_method(self):
         self.numerical = ['timestamp', 'year', 'age', 'freshness']
         self.categorical = [
             'user_id', 'item_id', 'gender', 'occupation', 'age_interval'
         ]
-        self.dataset = ML100K(data_dir=DATA_DIR,
+        self.dataset = ML100K(data_dir=DATA.parent,
                               categorical=self.categorical,
                               numerical=self.numerical)
 
-    @pytest.mark.skipif(not DATA_DIR.exists(), reason=f'{DATA_DIR} not exists')
+    @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_load(self):
-        df = self.dataset.load_df(data_dir=DATA_DIR)
+        df = self.dataset.load_df(data_dir=DATA.parent)
         assert isinstance(df, pd.DataFrame)
         assert all(i in df.columns for i in NUMERICAL)
         assert all(i in df.columns for i in CATEGORICAL)
 
-    @pytest.mark.skipif(not DATA_DIR.exists(), reason=f'{DATA_DIR} not exists')
+    @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_load_ml100k_user(self):
-        self.dataset.load_df(data_dir=DATA_DIR)
-        user_df = ML100K.load_ml100k_user(data_dir=DATA_DIR)
+        self.dataset.load_df(data_dir=DATA.parent)
+        user_df = ML100K.load_ml100k_user(data_dir=DATA.parent)
         assert isinstance(user_df, pd.DataFrame)
         assert 'user_id' in user_df.columns
         assert 'gender' in user_df.columns
@@ -87,7 +87,7 @@ class TestML100K:
                 pd.DataFrame([21, 51, 61, 45],
                              columns=['column']))  # wrong column name
 
-    @pytest.mark.skipif(not DATA_DIR.exists(), reason=f'{DATA_DIR} not exists')
+    @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_phase_data(self):
         phase_data1 = self.dataset.phase_data
         assert isinstance(phase_data1, dict)
@@ -107,7 +107,7 @@ class TestML100K:
         assert set(['train', 'val', 'test']) == phase_data3.keys()
         assert all(isinstance(data, tuple) for data in phase_data3.values())
 
-    @pytest.mark.skipif(not DATA_DIR.exists(), reason=f'{DATA_DIR} not exists')
+    @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_num_features(self):
         _ = self.dataset.phase_data
         num_features = self.dataset.num_features
