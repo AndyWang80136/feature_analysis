@@ -6,6 +6,7 @@ import torch
 from deepctr_torch.callbacks import EarlyStopping, ModelCheckpoint
 from deepctr_torch.inputs import DenseFeat, SparseFeat
 from deepctr_torch.models import DCN
+from recommenders.utils.timer import Timer
 from sklearn.metrics import confusion_matrix, log_loss, roc_auc_score
 
 from ..data import load_dataset
@@ -34,14 +35,13 @@ def train_process(data: dict,
     Returns:
         dict: training metric and result 
     """
-    
-    data.update(features)
+
     dataset = load_dataset(**data)
     phase_data = dataset.phase_data
     train_df, train_label = phase_data['train']
     val_df, val_label = phase_data['val']
     test_df, test_label = phase_data['test']
-    
+
     num_features = dataset.num_features
 
     train_data = {col: train_df[col].values for col in train_df.columns}
@@ -90,22 +90,25 @@ def train_process(data: dict,
 
     with tempfile.TemporaryDirectory(dir='/tmp') as tmp_dir:
         tmp_ckpt = Path(tmp_dir).joinpath('val_best.pth')
-        _ = dcn_model.fit(train_data,
-                          train_label,
-                          batch_size=128,
-                          epochs=epochs,
-                          verbose=1,
-                          validation_data=(val_data, val_label),
-                          callbacks=[
-                              ModelCheckpoint(filepath=tmp_ckpt,
-                                              monitor='val_auc',
-                                              mode='max',
-                                              save_best_only=True,
-                                              save_weights_only=True),
-                              EarlyStopping(monitor='val_auc',
-                                            patience=10,
-                                            mode='max')
-                          ])
+        with Timer() as train_time:
+            history = dcn_model.fit(train_data,
+                                    train_label,
+                                    batch_size=128,
+                                    epochs=epochs,
+                                    verbose=0,
+                                    validation_data=(val_data, val_label),
+                                    callbacks=[
+                                        ModelCheckpoint(
+                                            filepath=tmp_ckpt,
+                                            monitor='val_auc',
+                                            mode='max',
+                                            save_best_only=True,
+                                            save_weights_only=True),
+                                        EarlyStopping(monitor='val_auc',
+                                                      patience=10,
+                                                      mode='max')
+                                    ])
+        total_epoch = len(history.history['loss'])
         ckpt = torch.load(tmp_ckpt)
         dcn_model.load_state_dict(ckpt)
 
@@ -119,4 +122,8 @@ def train_process(data: dict,
                 other_metrics={
                     'logloss': test_loss,
                     'confusion_matrix': test_cm.tolist()
+                },
+                train_time={
+                    'time': train_time.interval,
+                    'total_epoch': total_epoch
                 })
