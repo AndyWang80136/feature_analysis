@@ -36,7 +36,7 @@ def train_process(data: dict,
         dict: training metric and result 
     """
 
-    dataset = load_dataset(**data)
+    dataset = load_dataset(**data, **features)
     phase_data = dataset.phase_data
     train_df, train_label = phase_data['train']
     val_df, val_label = phase_data['val']
