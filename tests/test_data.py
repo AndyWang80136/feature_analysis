@@ -102,10 +102,20 @@ class TestML100K:
         }
         self.dataset._phase_data = None
         self.dataset.apply_preprocessing = False
+        self.dataset.numerical = []
+        self.dataset.categorical = ['user_id', 'item_id']
         phase_data3 = self.dataset.phase_data
         assert isinstance(phase_data3, dict)
         assert set(['train', 'val', 'test']) == phase_data3.keys()
         assert all(isinstance(data, tuple) for data in phase_data3.values())
+        assert {
+            phase_data2[phase][0][['user_id', 'item_id']].equals(
+                phase_data3[phase][0][['user_id', 'item_id']])
+            and all(phase_data2[phase][0] == phase_data3[phase][0])
+            and phase_data2[phase][1].equals(phase_data3[phase][1])
+            and all(phase_data2[phase][1] == phase_data3[phase][1])
+            for phase in ['train', 'val', 'test']
+        }
 
     @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_num_features(self):

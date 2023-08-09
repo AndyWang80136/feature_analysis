@@ -26,9 +26,9 @@ def train(config: str, log_dir: Union[Path, str]):
 
     results = []
     hyperparams = parse_hyperparams(config_dict.pop('hyperparams'))
-    for hparam in hyperparams:
+    for idx, hparam in enumerate(hyperparams):
         input_dict = {**config_dict, **hparam}
-        logger.info(input_dict)
+        logger.info(f'[{idx+1}/{len(hyperparams)}]: {input_dict}')
         metric = train_process(**input_dict)
         info = {**input_dict, **metric}
         results.append(info)
