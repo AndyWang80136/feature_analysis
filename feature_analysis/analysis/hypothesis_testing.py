@@ -1,37 +1,50 @@
 from collections import Counter
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+import statsmodels.api
 from scipy.stats import chi2_contingency
-from statsmodels.stats.weightstats import ztest
 
 from .utils import remove_outliers
 
 __all__ = ['hypothesis_test']
 
 
-def hypothesis_test(df: pd.DataFrame,
+def hypothesis_test(user_df: pd.DataFrame,
                     feature: str,
                     label: str,
                     test_type: str,
+                    ztest_sample_size: Optional[int] = None,
                     times: int = 5,
                     random_seed: int = 42) -> dict:
     """hypothesis testing for Chi-Square test of indenpendence and z-test
 
     Args:
-        df: dataframe
+        user_df: user dataframe
         feature: feature name
         label: label name
         test_type: 'chi_square_independence' or 'ztest'
+        ztest_sample_size": z-test sample_size per sample
         times: repeat times
         random_seed: random seed
 
     Returns:
         dict: total times and significant counts
     """
+    if test_type == 'ztest' and ztest_sample_size is None:
+        ztest_sample_size = int(
+            statsmodels.stats.power.zt_ind_solve_power(
+                effect_size=0.5,
+                nobs1=None,
+                alpha=0.05,
+                power=0.8,
+                ratio=1.0,
+                alternative='two-sided')) + 1
+
     np.random.seed(random_seed)
     sample_flag = True
-
+    df = user_df.copy()
     type_feature = type(df[feature].iloc[0])
     type_label = type(df[label].iloc[0])
     if type_feature == type_label == list:
@@ -67,7 +80,7 @@ def hypothesis_test(df: pd.DataFrame,
                                   {'sample_feature':
                                    Counter})['sample_feature'].apply(pd.Series)
             # make sure each cell is larger than 5 counts
-            contingency = contingency[contingency >= 5].dropna()
+            contingency = contingency[contingency >= 5].dropna(axis=1)
             result = chi2_contingency(contingency.T)
             count += (result.pvalue <= 0.05)
         elif test_type == 'ztest':
@@ -76,9 +89,21 @@ def hypothesis_test(df: pd.DataFrame,
                             {'sample_feature': list})['sample_feature'].values
             assert len(value) == 2
             # remove outliers with 1.5IQR
-            value_0, value_1 = remove_outliers(value[0]), remove_outliers(
-                value[1])
-            _, pvalue = ztest(value_0, value_1, value=0)
+            value_0, value_1 = np.asarray(remove_outliers(
+                value[0])), np.asarray(remove_outliers(value[1]))
+
+            sample_0 = np.asarray(
+                np.random.choice(value_0,
+                                 size=ztest_sample_size,
+                                 replace=False))
+            sample_1 = np.asarray(
+                np.random.choice(value_1,
+                                 size=ztest_sample_size,
+                                 replace=False))
+
+            _, pvalue = statsmodels.stats.weightstats.ztest(sample_0,
+                                                            sample_1,
+                                                            value=0)
             count += (pvalue <= 0.05)
         else:
             raise NotImplementedError(
