@@ -63,11 +63,11 @@ class TestML100K:
         assert all(processed_df[CATEGORICAL].notna())
 
     def test_create_age_interval(self):
-        test_df = pd.DataFrame([15, 40, 65], columns=['age'])
+        test_df = pd.DataFrame([24, 40, 41], columns=['age'])
         processed_df = ML100K.create_age_interval(test_df)
         assert isinstance(processed_df, pd.DataFrame)
         assert 'age_interval' in processed_df.columns
-        assert list(processed_df['age_interval']) == ['15-39', '40-64', '65-']
+        assert list(processed_df['age_interval']) == ['1-24', '31-40', '41-']
         with pytest.raises(AssertionError):
             ML100K.create_age_interval(
                 pd.DataFrame([21, 51, 61, 45],

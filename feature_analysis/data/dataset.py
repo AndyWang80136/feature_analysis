@@ -218,8 +218,8 @@ class ML100K:
         """
         assert 'age' in df.columns
         df['age_interval'] = pd.cut(df['age'],
-                                    bins=[0, 14, 39, 64, 200],
-                                    labels=['0-14', '15-39', '40-64', '65-'])
+                                    bins=[0, 24, 30, 40, 200],
+                                    labels=['1-24', '25-30', '31-40', '41-'])
         return df
 
     @staticmethod
