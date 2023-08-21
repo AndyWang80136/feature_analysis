@@ -1,6 +1,16 @@
 hyperparams:
-    lr: [0.01, 0.001, 0.0001]
+    lr: [0.01, 0.005]
     model:
+        - {
+              "dnn_hidden_units": [128, 128],
+              "embedding_dim": 32,
+              "cross_num": 2,
+          }
+        - {
+              "dnn_hidden_units": [128, 128],
+              "embedding_dim": 32,
+              "cross_num": 4,
+          }
         - { "dnn_hidden_units": [128, 128], "embedding_dim": 8, "cross_num": 2 }
         - { "dnn_hidden_units": [128, 128], "embedding_dim": 8, "cross_num": 4 }
         - {
@@ -13,18 +23,39 @@ hyperparams:
               "embedding_dim": 16,
               "cross_num": 4,
           }
+        - { "dnn_hidden_units": [64, 64], "embedding_dim": 32, "cross_num": 2 }
+        - { "dnn_hidden_units": [64, 64], "embedding_dim": 32, "cross_num": 2 }
+        - { "dnn_hidden_units": [64, 64], "embedding_dim": 8, "cross_num": 2 }
+        - { "dnn_hidden_units": [64, 64], "embedding_dim": 8, "cross_num": 4 }
+        - { "dnn_hidden_units": [64, 64], "embedding_dim": 16, "cross_num": 2 }
+        - { "dnn_hidden_units": [64, 64], "embedding_dim": 16, "cross_num": 4 }
     features:
+        - { "numerical": [], "categorical": ["user_id", "item_id"] }
+        - { "numerical": ["age"], "categorical": ["user_id", "item_id"] }
+        - { "numerical": ["year"], "categorical": ["user_id", "item_id"] }
+        - { "numerical": ["timestamp"], "categorical": ["user_id", "item_id"] }
+        - { "numerical": ["freshness"], "categorical": ["user_id", "item_id"] }
+        - { "numerical": [], "categorical": ["user_id", "item_id", "gender"] }
         - {
               "numerical": [],
-              "categorical": ['user_id', 'item_id']
+              "categorical": ["user_id", "item_id", "occupation"],
           }
+        - {
+              "numerical": [],
+              "categorical": ["user_id", "item_id", "age_interval"],
+          }
+        - {
+              "numerical": ["freshness", "age"],
+              "categorical": ["user_id", "item_id", "occupation", "gender"],
+          }
+
 data:
     name: ML100K
-    data_dir: 'data/'
+    data_dir: '/DATA/'
     apply_fillnan: True
     apply_preprocessing: True
     random_seed: 42
-    
+
 optimizer: "SGD"
 epochs: 100
 random_seed: 42
