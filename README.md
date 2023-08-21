@@ -9,6 +9,20 @@ The dataset used in this repo is `MovieLens 100K Dataset`. The detail of the dat
 pip install -e .
 ```
 
+## Feature Analysis process
+Please follow the feature analysis process in [notebooks/feature_analysis.ipynb](./notebooks/feature_analysis.ipynb)
+
+## Experiments
+To reproduce result, type the following command on terminal
+```console
+python tools/train_hyperparams.py --config configs/hyperparams.yaml --log-dir logs
+```
+
+## Results
+The conclusion of the analysis process, the most influential feature is `freshness` and the all 4 features `freshness`, `age`, `occupation`, and `gender` has their impacts on model performance. The result of testing AUC improved percentage is presented as:
+
+![improved percentage](./results/baseline_with_other_features.png)
+
 ## Citation
 MovieLens 100K Dataset
 ```
