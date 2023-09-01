@@ -9,7 +9,7 @@ from deepctr_torch.models import DCN
 from recommenders.utils.timer import Timer
 from sklearn.metrics import confusion_matrix, log_loss, roc_auc_score
 
-from ..data import load_dataset
+from ..data import DatasetLoader
 
 __all__ = ['train_process']
 
@@ -36,7 +36,7 @@ def train_process(data: dict,
         dict: training metric and result 
     """
 
-    dataset = load_dataset(**data, **features)
+    dataset = DatasetLoader.load(**data, **features)
     phase_data = dataset.phase_data
     train_df, train_label = phase_data['train']
     val_df, val_label = phase_data['val']

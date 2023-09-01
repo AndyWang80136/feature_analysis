@@ -6,14 +6,36 @@ import pandas as pd
 import pytest
 
 from feature_analysis.data import (CATEGORICAL, ML100K, NUMERICAL,
-                                   RandomDataset, load_dataset)
+                                   DatasetLoader, RandomDataset)
 
 DATA = Path(__file__).parent.parent.joinpath('data').joinpath('ml-100k.zip')
 
 
-def test_load_dataset():
-    dataset = load_dataset(name='RandomDataset')
+def test_dataset_loader():
+    dataset = DatasetLoader.load(name='RandomDataset')
     assert isinstance(dataset, RandomDataset)
+
+    class CustomDatasest:
+
+        @property
+        def phase_data(self):
+            return {}
+
+        @property
+        def num_features(self):
+            return {}
+
+        @property
+        def categorical(self):
+            return {}
+
+        @property
+        def numerical(self):
+            return {}
+
+    DatasetLoader.add(name='CustomDatasest', module=CustomDatasest)
+    dataset = DatasetLoader.load(name='CustomDatasest')
+    assert isinstance(dataset, CustomDatasest)
 
 
 class TestML100K:

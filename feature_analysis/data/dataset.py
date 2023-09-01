@@ -1,7 +1,8 @@
 import shutil
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 from zipfile import ZipFile
 
 import numpy as np
@@ -11,25 +12,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-__all__ = [
-    'load_dataset', 'ML100K', 'RandomDataset', 'NUMERICAL', 'CATEGORICAL'
-]
-
-
-def load_dataset(name: str, **kwargs):
-    """load specific dataset with its name
-
-    Args:
-        name: dataset class name
-
-    Returns:
-        dataset
-    """
-    dataset = globals()[name](**kwargs)
-    assert hasattr(dataset, 'phase_data') and hasattr(
-        dataset, 'numerical') and hasattr(dataset, 'categorical') and hasattr(
-            dataset, 'num_features')
-    return dataset
+__all__ = ['ML100K', 'RandomDataset', 'NUMERICAL', 'CATEGORICAL']
 
 
 class RandomDataset:
@@ -73,6 +56,8 @@ class ML100K:
                  numerical: Optional[List[str]] = None,
                  apply_fillnan: bool = True,
                  apply_preprocessing: bool = True,
+                 categorical_encoders: Optional[dict] = None,
+                 numerical_encoders: Optional[dict] = None,
                  random_seed: int = 42):
         assert (categorical is not None) or (numerical is not None)
         self.data_dir = data_dir
@@ -83,8 +68,12 @@ class ML100K:
         self.random_seed = random_seed
         self._phase_data = None
         self._num_features = None
-        self.categorical_encoder = None
-        self.numerical_encoder = None
+        self.categorical_encoders = defaultdict(lambda: LabelEncoder())
+        self.numerical_encoders = defaultdict(lambda: StandardScaler())
+        if categorical_encoders is not None:
+            self.categorical_encoders.update(categorical_encoders)
+        if numerical_encoders is not None:
+            self.numerical_encoders.update(numerical_encoders)
 
     @staticmethod
     def load_ml100k_user(data_dir: Union[str, Path]) -> pd.DataFrame:
@@ -184,9 +173,9 @@ class ML100K:
             pd.DataFrame: processed dataframe
         """
         if self.numerical:
-            scaler = StandardScaler()
-            df[self.numerical] = scaler.fit_transform(df[self.numerical])
-            self.numerical_encoder = scaler
+            for feat in self.numerical:
+                df[feat] = self.numerical_encoders[feat].fit_transform(
+                    df[[feat]])
         return df
 
     def categorical_preprocessing(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -199,11 +188,9 @@ class ML100K:
             pd.DataFrame: processed dataframe
         """
         if self.categorical:
-            self.categorical_encoder = {}
             for feat in self.categorical:
-                encoder = LabelEncoder()
-                df[feat] = encoder.fit_transform(df[feat])
-                self.categorical_encoder[feat] = encoder
+                df[feat] = self.categorical_encoders[feat].fit_transform(
+                    df[feat])
         return df
 
     @staticmethod
@@ -252,6 +239,18 @@ class ML100K:
             df = getattr(self, f'create_{feature}')(df)
         return df
 
+    def train_test_split(self, df: pd.DataFrame) -> Tuple[pd.DataFrame]:
+        # 8:1:1 split
+        train_df, val_df = train_test_split(df,
+                                            test_size=0.2,
+                                            stratify=df['label'],
+                                            random_state=self.random_seed)
+        val_df, test_df = train_test_split(val_df,
+                                           test_size=0.5,
+                                           stratify=val_df['label'],
+                                           random_state=self.random_seed)
+        return train_df, val_df, test_df
+
     @property
     def phase_data(self):
         if self._phase_data is None:
@@ -270,24 +269,18 @@ class ML100K:
                 df_processed_new_feat = self.numerical_preprocessing(
                     df_processed_new_feat)
 
-            merge_df = df_processed_new_feat[[
-                *self.numerical, *self.categorical, 'label'
-            ]]
-            # 8:1:1 split
-            train_df, val_df = train_test_split(merge_df,
-                                                test_size=0.2,
-                                                stratify=merge_df['label'],
-                                                random_state=self.random_seed)
-            val_df, test_df = train_test_split(val_df,
-                                               test_size=0.5,
-                                               stratify=val_df['label'],
-                                               random_state=self.random_seed)
+            train_df, val_df, test_df = self.train_test_split(
+                df=df_processed_new_feat)
+
             train_label, val_label, test_label = train_df.pop(
                 'label'), val_df.pop('label'), test_df.pop('label')
             self._phase_data = {
-                'train': (train_df, train_label),
-                'val': (val_df, val_label),
-                'test': (test_df, test_label)
+                'train': (train_df[[*self.numerical,
+                                    *self.categorical]], train_label),
+                'val': (val_df[[*self.numerical,
+                                *self.categorical]], val_label),
+                'test': (test_df[[*self.numerical,
+                                  *self.categorical]], test_label)
             }
         return self._phase_data
 
@@ -298,7 +291,7 @@ class ML100K:
             self._num_features.update({feat: 1 for feat in self.numerical})
             self._num_features.update({
                 feat:
-                len(self.categorical_encoder[feat].classes_)
+                len(self.categorical_encoders[feat].classes_)
                 for feat in self.categorical
             })
         return self._num_features
