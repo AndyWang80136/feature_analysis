@@ -1,19 +1,42 @@
 from datetime import datetime
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
 
 from feature_analysis.data import (CATEGORICAL, ML100K, NUMERICAL,
-                                   RandomDataset, load_dataset)
+                                   DatasetLoader, RandomDataset)
 
 DATA = Path(__file__).parent.parent.joinpath('data').joinpath('ml-100k.zip')
 
 
-def test_load_dataset():
-    dataset = load_dataset(name='RandomDataset')
+def test_dataset_loader():
+    dataset = DatasetLoader.load(name='RandomDataset')
     assert isinstance(dataset, RandomDataset)
+
+    class CustomDatasest:
+
+        @property
+        def phase_data(self):
+            return {}
+
+        @property
+        def num_features(self):
+            return {}
+
+        @property
+        def categorical(self):
+            return {}
+
+        @property
+        def numerical(self):
+            return {}
+
+    DatasetLoader.add(name='CustomDatasest', module=CustomDatasest)
+    dataset = DatasetLoader.load(name='CustomDatasest')
+    assert isinstance(dataset, CustomDatasest)
 
 
 class TestML100K:
@@ -123,3 +146,10 @@ class TestML100K:
         num_features = self.dataset.num_features
         assert isinstance(num_features, dict)
         assert set(self.categorical + self.numerical) == num_features.keys()
+
+    def test_save(self, tmp_path):
+        self.dataset.save(save_dir=tmp_path)
+        dataset_config = joblib.load(Path(tmp_path).joinpath('dataset.pkl'))
+        assert isinstance(dataset_config, dict)
+        dataset = DatasetLoader.load(**dataset_config, inference=True)
+        assert isinstance(dataset, ML100K)

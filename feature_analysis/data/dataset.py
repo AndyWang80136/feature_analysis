@@ -1,9 +1,11 @@
 import shutil
+from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import List, Optional, Tuple, Union
 from zipfile import ZipFile
 
+import joblib
 import numpy as np
 import pandas as pd
 from recommenders.datasets import movielens
@@ -11,31 +13,14 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-__all__ = [
-    'load_dataset', 'ML100K', 'RandomDataset', 'NUMERICAL', 'CATEGORICAL'
-]
-
-
-def load_dataset(name: str, **kwargs):
-    """load specific dataset with its name
-
-    Args:
-        name: dataset class name
-
-    Returns:
-        dataset
-    """
-    dataset = globals()[name](**kwargs)
-    assert hasattr(dataset, 'phase_data') and hasattr(
-        dataset, 'numerical') and hasattr(dataset, 'categorical') and hasattr(
-            dataset, 'num_features')
-    return dataset
+__all__ = ['ML100K', 'RandomDataset', 'NUMERICAL', 'CATEGORICAL']
 
 
 class RandomDataset:
 
-    def __init__(self):
-        pass
+    def __init__(self, random_seed: int = 42):
+        self.random_seed = random_seed
+        np.random.seed(random_seed)
 
     @property
     def phase_data(self):
@@ -59,6 +44,15 @@ class RandomDataset:
     @property
     def numerical(self):
         return ['numerical1']
+    
+    def save(self, save_dir: Union[Path, str]):
+        config = {
+            'name': self.__class__.__name__,
+            'categorical': self.categorical,
+            'numerical': self.numerical,
+            'random_seed': self.random_seed
+        }
+        joblib.dump(config, Path(save_dir).joinpath('dataset.pkl'))
 
 
 NUMERICAL = ['timestamp', 'year', 'age']
@@ -69,13 +63,20 @@ class ML100K:
 
     def __init__(self,
                  data_dir: Optional[Union[str, Path]] = None,
+                 rating_threshold: int = 3,
+                 drop_threshold: bool = True,
                  categorical: Optional[List[str]] = None,
                  numerical: Optional[List[str]] = None,
                  apply_fillnan: bool = True,
                  apply_preprocessing: bool = True,
-                 random_seed: int = 42):
+                 categorical_encoders: Optional[dict] = None,
+                 numerical_encoders: Optional[dict] = None,
+                 random_seed: int = 42,
+                 inference: bool = False):
         assert (categorical is not None) or (numerical is not None)
         self.data_dir = data_dir
+        self.rating_threshold = rating_threshold
+        self.drop_threshold = drop_threshold
         self.categorical = categorical
         self.numerical = numerical
         self.apply_fillnan = apply_fillnan
@@ -83,8 +84,13 @@ class ML100K:
         self.random_seed = random_seed
         self._phase_data = None
         self._num_features = None
-        self.categorical_encoder = None
-        self.numerical_encoder = None
+        self.categorical_encoders = defaultdict(lambda: LabelEncoder())
+        self.numerical_encoders = defaultdict(lambda: StandardScaler())
+        if categorical_encoders is not None:
+            self.categorical_encoders.update(categorical_encoders)
+        if numerical_encoders is not None:
+            self.numerical_encoders.update(numerical_encoders)
+        self.inference = inference
 
     @staticmethod
     def load_ml100k_user(data_dir: Union[str, Path]) -> pd.DataFrame:
@@ -133,10 +139,7 @@ class ML100K:
                                       year_col='year')
         user_df = self.load_ml100k_user(data_dir=data_dir)
         df = pd.merge(df, user_df, how='left', on='user_id')
-
-        # drop rating: 3 and treat 4,5 as 1 and treat 1,2 as 0
-        df = df[df['rating'] != 3]
-        df['label'] = df['rating'].apply(lambda a: a > 3).astype(int)
+        df = self.generate_label(df)
         return df
 
     @staticmethod
@@ -174,36 +177,50 @@ class ML100K:
         df[CATEGORICAL] = df[CATEGORICAL].fillna('nan')
         return df
 
-    def numerical_preprocessing(self, df: pd.DataFrame) -> pd.DataFrame:
-        """preprocess on numerical features
+    def generate_label(self, df):
+        if self.drop_threshold:
+            df = df[df['rating'] != self.rating_threshold]
 
-        Args:
-            df: dataframe
-
-        Returns:
-            pd.DataFrame: processed dataframe
-        """
-        if self.numerical:
-            scaler = StandardScaler()
-            df[self.numerical] = scaler.fit_transform(df[self.numerical])
-            self.numerical_encoder = scaler
+        df.loc[df.index, ['label']] = (df['rating'] > 3).astype(int)
         return df
 
-    def categorical_preprocessing(self, df: pd.DataFrame) -> pd.DataFrame:
-        """preprocess on categorical features
+    def numerical_encoder_fit(self, df: pd.DataFrame):
+        """encode on numerical features
 
         Args:
             df: dataframe
-
-        Returns:
-            pd.DataFrame: processed dataframe
         """
-        if self.categorical:
-            self.categorical_encoder = {}
-            for feat in self.categorical:
-                encoder = LabelEncoder()
-                df[feat] = encoder.fit_transform(df[feat])
-                self.categorical_encoder[feat] = encoder
+        for feat in self.numerical:
+            self.numerical_encoders[feat].fit(df[[feat]])
+
+    def numerical_encoder_transform(self, df: pd.DataFrame):
+        """transform on numerical features
+
+        Args:
+            df: dataframe
+        """
+        for feat in self.numerical:
+            df[feat] = self.numerical_encoders[feat].transform(df[[feat]])
+        return df
+
+    def categorical_encoder_fit(self, df: pd.DataFrame):
+        """encode on categorical features
+
+        Args:
+            df: dataframe
+        """
+        for feat in self.categorical:
+            self.categorical_encoders[feat].fit(df[feat])
+
+    def categorical_encoder_transform(self, df: pd.DataFrame):
+        """encode on categorical features
+
+        Args:
+            df: dataframe
+        """
+        for feat in self.categorical:
+            df[feat] = self.categorical_encoders[feat].transform(df[feat])
+
         return df
 
     @staticmethod
@@ -242,8 +259,8 @@ class ML100K:
         """create new features on already existed feature function
 
         Args:
-            df (pd.DataFrame): dataframe
-            features (List[str]): new feature name list
+            df: dataframe
+            features: new feature name list
 
         Returns:
             pd.DataFrame: dataframe with new feature columns
@@ -252,42 +269,64 @@ class ML100K:
             df = getattr(self, f'create_{feature}')(df)
         return df
 
+    def train_test_split(self, df: pd.DataFrame) -> Tuple[pd.DataFrame]:
+        # 8:1:1 split
+        train_df, val_df = train_test_split(df,
+                                            test_size=0.2,
+                                            stratify=df['label'],
+                                            random_state=self.random_seed)
+        val_df, test_df = train_test_split(val_df,
+                                           test_size=0.5,
+                                           stratify=val_df['label'],
+                                           random_state=self.random_seed)
+        return train_df, val_df, test_df
+
+    def transform_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+
+        Args:
+            df: dataframe
+
+        Returns:
+            pd.DataFrame: transformed dataframe
+        """
+        df = df.copy()
+        df = self.generate_label(df)
+
+        if self.apply_fillnan:
+            df = self.numerical_fillnan(df)
+            df = self.categorical_fillnan(df)
+
+        # after fillnan, genreate freshness and age_interval
+        df = self.create_new_features(df,
+                                      features=['freshness', 'age_interval'])
+        # preprocessing
+        if self.apply_preprocessing:
+            self.categorical_encoder_fit(df)
+            self.numerical_encoder_fit(df)
+            df = self.categorical_encoder_transform(df)
+            df = self.numerical_encoder_transform(df)
+
+        return df[[*self.numerical, *self.categorical, 'label'
+                   ]] if 'label' in df.columns else df[[
+                       *self.numerical, *self.categorical
+                   ]]
+
     @property
     def phase_data(self):
-        if self._phase_data is None:
+        if self._phase_data is None and not self.inference:
             df = self.load_df(data_dir=self.data_dir)
-            # fillnan
-            if self.apply_fillnan:
-                df = self.numerical_fillnan(df)
-                df = self.categorical_fillnan(df)
-            # add new features
-            df_processed_new_feat = self.create_new_features(
-                df, features=['freshness', 'age_interval'])
-            # preprocessing
-            if self.apply_preprocessing:
-                df_processed_new_feat = self.categorical_preprocessing(
-                    df_processed_new_feat)
-                df_processed_new_feat = self.numerical_preprocessing(
-                    df_processed_new_feat)
-
-            merge_df = df_processed_new_feat[[
-                *self.numerical, *self.categorical, 'label'
-            ]]
-            # 8:1:1 split
-            train_df, val_df = train_test_split(merge_df,
-                                                test_size=0.2,
-                                                stratify=merge_df['label'],
-                                                random_state=self.random_seed)
-            val_df, test_df = train_test_split(val_df,
-                                               test_size=0.5,
-                                               stratify=val_df['label'],
-                                               random_state=self.random_seed)
+            trns_df = self.transform_df(df)
+            train_df, val_df, test_df = self.train_test_split(df=trns_df)
             train_label, val_label, test_label = train_df.pop(
                 'label'), val_df.pop('label'), test_df.pop('label')
             self._phase_data = {
-                'train': (train_df, train_label),
-                'val': (val_df, val_label),
-                'test': (test_df, test_label)
+                'train': (train_df[[*self.numerical,
+                                    *self.categorical]], train_label),
+                'val': (val_df[[*self.numerical,
+                                *self.categorical]], val_label),
+                'test': (test_df[[*self.numerical,
+                                  *self.categorical]], test_label)
             }
         return self._phase_data
 
@@ -298,7 +337,27 @@ class ML100K:
             self._num_features.update({feat: 1 for feat in self.numerical})
             self._num_features.update({
                 feat:
-                len(self.categorical_encoder[feat].classes_)
+                len(self.categorical_encoders[feat].classes_)
+                if feat in self.categorical_encoders else None
                 for feat in self.categorical
             })
         return self._num_features
+
+    def save(self, save_dir: Union[Path, str]):
+        """save dataset configs
+
+        Args:
+            save_dir: save directory
+        """
+        config = {
+            'name': self.__class__.__name__,
+            'data_dir': self.data_dir,
+            'categorical': self.categorical,
+            'numerical': self.numerical,
+            'apply_fillnan': self.apply_fillnan,
+            'apply_preprocessing': self.apply_preprocessing,
+            'categorical_encoders': dict(self.categorical_encoders),
+            'numerical_encoders': dict(self.numerical_encoders),
+            'random_seed': self.random_seed
+        }
+        joblib.dump(config, Path(save_dir).joinpath('dataset.pkl'))
