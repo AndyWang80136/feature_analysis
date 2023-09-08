@@ -151,5 +151,5 @@ class TestML100K:
         self.dataset.save(save_dir=tmp_path)
         dataset_config = joblib.load(Path(tmp_path).joinpath('dataset.pkl'))
         assert isinstance(dataset_config, dict)
-        dataset = DatasetLoader.load(**dataset_config, inference=True)
+        dataset = DatasetLoader.load(**dataset_config)
         assert isinstance(dataset, ML100K)
