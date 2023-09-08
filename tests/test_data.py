@@ -1,6 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
+import joblib
 import numpy as np
 import pandas as pd
 import pytest
@@ -145,3 +146,10 @@ class TestML100K:
         num_features = self.dataset.num_features
         assert isinstance(num_features, dict)
         assert set(self.categorical + self.numerical) == num_features.keys()
+
+    def test_save(self, tmp_path):
+        self.dataset.save(save_dir=tmp_path)
+        dataset_config = joblib.load(Path(tmp_path).joinpath('dataset.pkl'))
+        assert isinstance(dataset_config, dict)
+        dataset = DatasetLoader.load(**dataset_config, inference=True)
+        assert isinstance(dataset, ML100K)
