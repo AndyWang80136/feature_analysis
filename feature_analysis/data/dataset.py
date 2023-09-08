@@ -18,7 +18,14 @@ __all__ = ['ML100K', 'RandomDataset', 'NUMERICAL', 'CATEGORICAL']
 
 class RandomDataset:
 
-    def __init__(self, random_seed: int = 42):
+    def __init__(self,
+                 categorical: List[str] = None,
+                 numerical: List[str] = None,
+                 random_seed: int = 42):
+        self.categorical = categorical if categorical is not None else [
+            'categorical1'
+        ]
+        self.numerical = numerical if numerical is not None else ['numerical1']
         self.random_seed = random_seed
         np.random.seed(random_seed)
 
@@ -37,14 +44,6 @@ class RandomDataset:
     def num_features(self):
         return {'numerical1': 1, 'categorical1': 2}
 
-    @property
-    def categorical(self):
-        return ['categorical1']
-
-    @property
-    def numerical(self):
-        return ['numerical1']
-    
     def save(self, save_dir: Union[Path, str]):
         config = {
             'name': self.__class__.__name__,
@@ -53,6 +52,9 @@ class RandomDataset:
             'random_seed': self.random_seed
         }
         joblib.dump(config, Path(save_dir).joinpath('dataset.pkl'))
+
+    def transform_df(self, df):
+        return df
 
 
 NUMERICAL = ['timestamp', 'year', 'age']
@@ -152,12 +154,14 @@ class ML100K:
         Returns:
             pd.DataFrame: processed dataframe on NUMERICAL features
         """
-        df[NUMERICAL] = df[NUMERICAL].where(df[NUMERICAL].notna(), np.nan)
-        for feat in NUMERICAL:
-            imputer = SimpleImputer(missing_values=np.nan,
-                                    strategy='most_frequent')
-            df[feat] = imputer.fit_transform(
-                df[[feat]].astype('object')).astype(float)
+        columns = [i for i in NUMERICAL if i in df.columns]
+        if columns:
+            df[columns] = df[columns].where(df[columns].notna(), np.nan)
+            for feat in columns:
+                imputer = SimpleImputer(missing_values=np.nan,
+                                        strategy='most_frequent')
+                df[feat] = imputer.fit_transform(
+                    df[[feat]].astype('object')).astype(float)
         return df
 
     @staticmethod
@@ -170,18 +174,22 @@ class ML100K:
         Returns:
             pd.DataFrame: processed dataframe on CATEGORICAL features
         """
-
+        columns = [i for i in NUMERICAL if i in df.columns]
         # None to np.nan
-        df[CATEGORICAL] = df[CATEGORICAL].where(df[CATEGORICAL].notna(),
-                                                np.nan)
-        df[CATEGORICAL] = df[CATEGORICAL].fillna('nan')
+        if columns:
+            df[columns] = df[columns].where(df[columns].notna(), np.nan)
+            df[columns] = df[columns].fillna('nan')
         return df
 
     def generate_label(self, df):
+        if 'rating' not in df:
+            return df
+
         if self.drop_threshold:
             df = df[df['rating'] != self.rating_threshold]
 
-        df.loc[df.index, ['label']] = (df['rating'] > 3).astype(int)
+        df.loc[df.index, ['label']] = (df['rating']
+                                       >= self.rating_threshold).astype(int)
         return df
 
     def numerical_encoder_fit(self, df: pd.DataFrame):
@@ -302,8 +310,11 @@ class ML100K:
                                       features=['freshness', 'age_interval'])
         # preprocessing
         if self.apply_preprocessing:
-            self.categorical_encoder_fit(df)
-            self.numerical_encoder_fit(df)
+            # train
+            if not self.inference:
+                self.categorical_encoder_fit(df)
+                self.numerical_encoder_fit(df)
+            # train and inference
             df = self.categorical_encoder_transform(df)
             df = self.numerical_encoder_transform(df)
 
@@ -358,6 +369,7 @@ class ML100K:
             'apply_preprocessing': self.apply_preprocessing,
             'categorical_encoders': dict(self.categorical_encoders),
             'numerical_encoders': dict(self.numerical_encoders),
-            'random_seed': self.random_seed
+            'random_seed': self.random_seed,
+            'inference': True
         }
         joblib.dump(config, Path(save_dir).joinpath('dataset.pkl'))
