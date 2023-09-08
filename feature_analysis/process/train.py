@@ -1,6 +1,8 @@
 import importlib
+import shutil
 import tempfile
 from pathlib import Path
+from typing import Optional, Union
 
 import torch
 from deepctr_torch.callbacks import EarlyStopping, ModelCheckpoint
@@ -20,7 +22,8 @@ def train_process(data: dict,
                   optimizer: str,
                   epochs: int,
                   features: dict,
-                  random_seed: int = 42) -> dict:
+                  random_seed: int = 42,
+                  save_model_dir: Optional[Union[Path, str]] = None) -> dict:
     """train process
 
     Args:
@@ -31,6 +34,7 @@ def train_process(data: dict,
         epochs: number of epochs
         features: feature dict with numerical and categorical feature list
         random_seed: random seed
+        save_model_dir: model saved directory
 
     Returns:
         dict: training metric and result 
@@ -108,6 +112,21 @@ def train_process(data: dict,
                                                       patience=10,
                                                       mode='max')
                                     ])
+        if save_model_dir is not None:
+            shutil.copytree(src=tmp_dir,
+                            dst=save_model_dir,
+                            dirs_exist_ok=True)
+            dataset.save(save_dir=save_model_dir)
+            torch.save(
+                {
+                    'model':
+                    torch.load(Path(save_model_dir).joinpath('val_best.pth')),
+                    'config': {
+                        'feature_columns': feature_columns,
+                        'model': model
+                    }
+                },
+                Path(save_model_dir).joinpath('val_best.pth'))
         total_epoch = len(history.history['loss'])
         ckpt = torch.load(tmp_ckpt)
         dcn_model.load_state_dict(ckpt)
