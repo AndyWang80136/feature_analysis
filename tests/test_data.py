@@ -49,7 +49,9 @@ class TestML100K:
         ]
         self.dataset = ML100K(data_dir=DATA.parent,
                               categorical=self.categorical,
-                              numerical=self.numerical)
+                              numerical=self.numerical,
+                              rating_threshold=3,
+                              drop_threshold=True)
 
     @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_load(self):
@@ -109,6 +111,18 @@ class TestML100K:
             ML100K.create_age_interval(
                 pd.DataFrame([21, 51, 61, 45],
                              columns=['column']))  # wrong column name
+
+    def test_create_year(self):
+        test_df = pd.DataFrame(
+            [['movie_title1 (2023)', 2023], ['movie_title2 (2000)', 2000]],
+            columns=['movie_title', 'year'])
+        processed_df = ML100K.create_year(test_df)
+        assert 'year' in processed_df.columns
+        assert processed_df['year'].values.tolist() == [2023, 2000]
+        test_df = test_df.drop(columns=['year'])
+        processed_df = ML100K.create_year(test_df)
+        assert 'year' in processed_df.columns
+        assert processed_df['year'].values.tolist() == [2023, 2000]
 
     @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_phase_data(self):
