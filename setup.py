@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import find_packages, setup
 
 
 def parse_requirement(requirement_file):
@@ -13,7 +13,7 @@ setup(name='feature_analysis',
       author='Andy Wang',
       author_email='andy80136@gmail.com',
       description='Feature analysis and selection for training process',
-      packages=['feature_analysis'],
+      packages=find_packages(),
       install_requires=parse_requirement('requirements/core.txt'),
       extras_require={
           'dev': parse_requirement('requirements/dev.txt')
