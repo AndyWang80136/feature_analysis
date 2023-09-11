@@ -1,3 +1,4 @@
+import re
 import shutil
 from collections import defaultdict
 from datetime import datetime
@@ -59,6 +60,7 @@ class RandomDataset:
 
 NUMERICAL = ['timestamp', 'year', 'age']
 CATEGORICAL = ['user_id', 'item_id', 'gender', 'occupation']
+CUSTOM_FEATURES = ['year', 'freshness', 'age_interval']
 
 
 class ML100K:
@@ -69,6 +71,7 @@ class ML100K:
                  drop_threshold: bool = True,
                  categorical: Optional[List[str]] = None,
                  numerical: Optional[List[str]] = None,
+                 custom_features: Optional[List[str]] = None,
                  apply_fillnan: bool = True,
                  apply_preprocessing: bool = True,
                  categorical_encoders: Optional[dict] = None,
@@ -93,6 +96,8 @@ class ML100K:
         if numerical_encoders is not None:
             self.numerical_encoders.update(numerical_encoders)
         self.inference = inference
+        if custom_features is None:
+            self.custom_features = CUSTOM_FEATURES
 
     @staticmethod
     def load_ml100k_user(data_dir: Union[str, Path]) -> pd.DataFrame:
@@ -141,7 +146,6 @@ class ML100K:
                                       year_col='year')
         user_df = self.load_ml100k_user(data_dir=data_dir)
         df = pd.merge(df, user_df, how='left', on='user_id')
-        df = self.generate_label(df)
         return df
 
     @staticmethod
@@ -181,10 +185,7 @@ class ML100K:
             df[columns] = df[columns].fillna('nan')
         return df
 
-    def generate_label(self, df):
-        if 'rating' not in df:
-            return df
-
+    def generate_label(self, df: pd.DataFrame) -> pd.DataFrame:
         if self.drop_threshold:
             df = df[df['rating'] != self.rating_threshold]
 
@@ -262,6 +263,21 @@ class ML100K:
             lambda a: datetime.fromtimestamp(a).year) - df['year'].astype(int)
         return df
 
+    @staticmethod
+    def create_year(df: pd.DataFrame) -> pd.DataFrame:
+        """create release year of the movie
+
+        Args:
+            df: dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with year column
+        """
+        if 'year' not in df.columns:
+            df['year'] = df['movie_title'].apply(
+                lambda a: re.search('(\d\d\d\d)', a).group(1)).astype(int)
+        return df
+
     def create_new_features(self, df: pd.DataFrame,
                             features: List[str]) -> pd.DataFrame:
         """create new features on already existed feature function
@@ -306,8 +322,7 @@ class ML100K:
             df = self.categorical_fillnan(df)
 
         # after fillnan, genreate freshness and age_interval
-        df = self.create_new_features(df,
-                                      features=['freshness', 'age_interval'])
+        df = self.create_new_features(df, features=self.custom_features)
         # preprocessing
         if self.apply_preprocessing:
             # train
@@ -365,6 +380,9 @@ class ML100K:
             'data_dir': self.data_dir,
             'categorical': self.categorical,
             'numerical': self.numerical,
+            'rating_threshold': self.rating_threshold,
+            'drop_threshold': self.drop_threshold,
+            'custom_features': self.custom_features,
             'apply_fillnan': self.apply_fillnan,
             'apply_preprocessing': self.apply_preprocessing,
             'categorical_encoders': dict(self.categorical_encoders),
@@ -373,3 +391,4 @@ class ML100K:
             'inference': True
         }
         joblib.dump(config, Path(save_dir).joinpath('dataset.pkl'))
+
