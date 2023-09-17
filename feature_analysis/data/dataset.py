@@ -186,6 +186,9 @@ class ML100K:
         return df
 
     def generate_label(self, df: pd.DataFrame) -> pd.DataFrame:
+        if 'rating' not in df.columns:
+            return df
+
         if self.drop_threshold:
             df = df[df['rating'] != self.rating_threshold]
 
@@ -391,4 +394,3 @@ class ML100K:
             'inference': True
         }
         joblib.dump(config, Path(save_dir).joinpath('dataset.pkl'))
-
