@@ -7,9 +7,10 @@ import fire
 import numpy as np
 import torch
 from loguru import logger
+from torch.utils.tensorboard import SummaryWriter
 
 from feature_analysis.process import train_process
-from feature_analysis.utils import load_yaml, parse_hyperparams
+from feature_analysis.utils import flatten_dict, load_yaml, parse_hyperparams
 
 
 def set_random_seed(seed: int):
@@ -24,6 +25,8 @@ def train(config: str, log_dir: Union[Path, str]):
     random_seed = config_dict.get('random_seed', 42)
     set_random_seed(seed=random_seed)
 
+    writer = SummaryWriter(log_dir=log_dir, flush_secs=15)
+
     results = []
     hyperparams = parse_hyperparams(config_dict.pop('hyperparams'))
     for idx, hparam in enumerate(hyperparams):
@@ -31,9 +34,14 @@ def train(config: str, log_dir: Union[Path, str]):
         logger.info(f'[{idx+1}/{len(hyperparams)}]: {input_dict}')
         metric = train_process(**input_dict)
         info = {**input_dict, **metric}
+        writer.add_hparams(
+            hparam_dict=flatten_dict(input_dict),
+            metric_dict=flatten_dict(metric),
+        )
         results.append(info)
-
-    top_results = sorted(results, key=lambda r: r['best_value'], reverse=True)
+    writer.close()
+    
+    top_results = sorted(results, key=lambda r: r['metrics']['auc'], reverse=True)
     logger.info(f'The best params settings: {top_results[0]}')
 
     if not Path(log_dir).exists():
