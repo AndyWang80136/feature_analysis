@@ -6,3 +6,4 @@
 **/hyperparam_result.json
 **/logs**/
 data/
+build/
