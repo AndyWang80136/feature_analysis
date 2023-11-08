@@ -16,9 +16,7 @@ def test_train_process(tmp_path):
                            epochs=1,
                            save_model_dir=tmp_path)
     assert isinstance(result, dict)
-    assert 'best_metric' in result
-    assert 'best_value' in result
-    assert 'other_metrics' in result
+    assert 'metrics' in result
     assert 'train_time' in result
     assert 'total_epoch' in result['train_time'] and 'time' in result[
         'train_time']

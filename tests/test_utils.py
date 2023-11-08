@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from feature_analysis.utils import load_yaml, parse_hyperparams
+from feature_analysis.utils import flatten_dict, load_yaml, parse_hyperparams
 
 
 def test_load_yaml(tmp_path):
@@ -36,3 +36,9 @@ def test_parse_hyperparams(params, expected, raise_error):
         assert isinstance(parsed_params, list)
         assert all(isinstance(i, dict) for i in parsed_params)
         parsed_params == expected
+
+
+def test_flatten_dict():
+    data = {'a': 1, 'b': ['1', '2'], 'c': {'d': 2}}
+    flatten_data = flatten_dict(data)
+    assert flatten_data == {'a': 1, 'b': '1,2', 'c/d': 2}
