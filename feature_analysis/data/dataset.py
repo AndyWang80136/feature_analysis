@@ -96,8 +96,7 @@ class ML100K:
         if numerical_encoders is not None:
             self.numerical_encoders.update(numerical_encoders)
         self.inference = inference
-        if custom_features is None:
-            self.custom_features = CUSTOM_FEATURES
+        self.custom_features = CUSTOM_FEATURES if custom_features is None else []
 
     @staticmethod
     def load_ml100k_user(data_dir: Union[str, Path]) -> pd.DataFrame:
