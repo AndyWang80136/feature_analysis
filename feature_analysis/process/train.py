@@ -134,15 +134,14 @@ def train_process(data: dict,
     pred_ans = dcn_model.predict(test_data, 128)
     test_loss = round(log_loss(test_label, pred_ans), 4)
     test_auc = round(roc_auc_score(test_label, pred_ans), 4)
-    test_cm = confusion_matrix(y_pred=pred_ans >= 0.5, y_true=test_label)
 
-    return dict(best_metric='test_auc',
-                best_value=test_auc,
-                other_metrics={
-                    'logloss': test_loss,
-                    'confusion_matrix': test_cm.tolist()
-                },
-                train_time={
-                    'time': train_time.interval,
-                    'total_epoch': total_epoch
-                })
+    return dict(
+        metrics={
+            'auc': test_auc,
+            'logloss': test_loss
+        },
+        train_time={
+            'time': train_time.interval,
+            'total_epoch': total_epoch
+        },
+    )
