@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -45,7 +46,8 @@ class TestML100K:
     def setup_method(self):
         self.numerical = ['timestamp', 'year', 'age', 'freshness']
         self.categorical = [
-            'user_id', 'item_id', 'gender', 'occupation', 'age_interval'
+            'user_id', 'item_id', 'gender', 'occupation', 'age_interval',
+            'day', 'day_type', 'day_hour', 'day_interval'
         ]
         self.dataset = ML100K(data_dir=DATA.parent,
                               categorical=self.categorical,
@@ -123,6 +125,35 @@ class TestML100K:
         processed_df = ML100K.create_year(test_df)
         assert 'year' in processed_df.columns
         assert processed_df['year'].values.tolist() == [2023, 2000]
+
+    def test_create_datetime(self):
+        test_df = pd.DataFrame([[time.time()]], columns=['timestamp'])
+        processed_df = ML100K.create_datetime(test_df)
+        assert 'datetime' in processed_df.columns
+        assert all(isinstance(i, datetime) for i in processed_df['datetime'])
+        with pytest.raises(AssertionError):
+            test_df = test_df.drop(columns=['timestamp'])
+            ML100K.create_datetime(test_df)
+
+    def test_create_datetime_related_attr(self):
+        now_datetime = datetime.now()
+        test_df = pd.DataFrame([[now_datetime]], columns=['datetime'])
+        assert ML100K.create_day(
+            test_df)['day'].values[0] == now_datetime.weekday()
+        assert ML100K.create_day_type(test_df)['day_type'].values[0] in [
+            'weekday', 'weekend'
+        ]
+        assert 0 <= ML100K.create_day_hour(test_df)['day_hour'].values[0] <= 23
+        assert ML100K.create_day_interval(
+            test_df)['day_interval'].values[0] in [
+                'early_morning', 'morning', 'afternoon', 'night'
+            ]
+        with pytest.raises(AssertionError):
+            test_df = test_df.drop(columns=['datetime'])
+            ML100K.create_day(test_df)
+            ML100K.create_day_type(test_df)
+            ML100K.create_day_hour(test_df)
+            ML100K.create_day_interval(test_df)
 
     @pytest.mark.skipif(not DATA.exists(), reason=f'{DATA} not exists')
     def test_phase_data(self):
