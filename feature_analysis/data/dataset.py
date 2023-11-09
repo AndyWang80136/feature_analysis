@@ -9,6 +9,7 @@ from zipfile import ZipFile
 import joblib
 import numpy as np
 import pandas as pd
+import pytz
 from recommenders.datasets import movielens
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split
@@ -60,7 +61,10 @@ class RandomDataset:
 
 NUMERICAL = ['timestamp', 'year', 'age']
 CATEGORICAL = ['user_id', 'item_id', 'gender', 'occupation']
-CUSTOM_FEATURES = ['year', 'freshness', 'age_interval']
+CUSTOM_FEATURES = [
+    'year', 'freshness', 'age_interval', 'datetime', 'day', 'day_type',
+    'day_hour', 'day_interval'
+]
 
 
 class ML100K:
@@ -278,6 +282,83 @@ class ML100K:
         if 'year' not in df.columns:
             df['year'] = df['movie_title'].apply(
                 lambda a: re.search('(\d\d\d\d)', a).group(1)).astype(int)
+        return df
+
+    @staticmethod
+    def create_datetime(df: pd.DataFrame) -> pd.DataFrame:
+        """create datetime from rating timestamp
+
+        Args:
+            df: dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with datetime column
+        """
+        assert 'timestamp' in df.columns
+        df['datetime'] = df['timestamp'].apply(
+            lambda t: datetime.fromtimestamp(
+                t, tz=pytz.timezone('America/Chicago')))
+        return df
+
+    @staticmethod
+    def create_day(df: pd.DataFrame) -> pd.DataFrame:
+        """create day from datetime
+
+        Args:
+            df: dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with day column
+        """
+        assert 'datetime' in df.columns
+        df['day'] = df['datetime'].apply(lambda a: a.weekday())
+        return df
+
+    @staticmethod
+    def create_day_type(df: pd.DataFrame) -> pd.DataFrame:
+        """create day_type from datetime, return 'weekday' or 'weekend'
+
+        Args:
+            df: dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with day_type column, with 'weekday' or 'weekend'
+        """
+        assert 'datetime' in df.columns
+        df['day_type'] = df['datetime'].apply(
+            lambda a: 'weekday' if a.weekday() < 5 else 'weekend')
+        return df
+
+    @staticmethod
+    def create_day_hour(df: pd.DataFrame) -> pd.DataFrame:
+        """create day hour from datetime, return value 0 to 23
+
+        Args:
+            df: dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with day_hour column, with value 0 to 23
+        """
+        assert 'datetime' in df.columns
+        df['day_hour'] = df['datetime'].apply(lambda a: a.hour)
+        return df
+
+    @staticmethod
+    def create_day_interval(df: pd.DataFrame) -> pd.DataFrame:
+        """create day interval from day hour, return one of ['early_morning', 'morning', 'afternoon', 'night']
+
+        Args:
+            df: dataframe
+
+        Returns:
+            pd.DataFrame: dataframe with day_interval column with one of ['early_morning', 'morning', 'afternoon', 'night']
+        """
+        assert 'datetime' in df.columns
+        df['day_interval'] = pd.cut(
+            df['datetime'].apply(lambda a: a.hour),
+            bins=[-1, 6, 12, 18, 24],
+            labels=['early_morning', 'morning', 'afternoon', 'night'],
+            right=False)
         return df
 
     def create_new_features(self, df: pd.DataFrame,
