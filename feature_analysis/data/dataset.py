@@ -281,7 +281,7 @@ class ML100K:
         """
         if 'year' not in df.columns:
             df['year'] = df['movie_title'].apply(
-                lambda a: re.search('(\d\d\d\d)', a).group(1)).astype(int)
+                lambda a: re.search(r'\((\d\d\d\d)\)', a).group(1)).astype(int)
         return df
 
     @staticmethod

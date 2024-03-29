@@ -9,7 +9,7 @@ from deepctr_torch.callbacks import EarlyStopping, ModelCheckpoint
 from deepctr_torch.inputs import DenseFeat, SparseFeat
 from deepctr_torch.models import DCN
 from recommenders.utils.timer import Timer
-from sklearn.metrics import confusion_matrix, log_loss, roc_auc_score
+from sklearn.metrics import log_loss, roc_auc_score
 
 from ..data import DatasetLoader
 

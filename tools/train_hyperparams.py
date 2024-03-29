@@ -1,3 +1,4 @@
+import copy
 import json
 import random
 from pathlib import Path
@@ -32,16 +33,18 @@ def train(config: str, log_dir: Union[Path, str]):
     for idx, hparam in enumerate(hyperparams):
         input_dict = {**config_dict, **hparam}
         logger.info(f'[{idx+1}/{len(hyperparams)}]: {input_dict}')
-        metric = train_process(**input_dict)
-        info = {**input_dict, **metric}
+        metric = train_process(**copy.deepcopy(input_dict))
+        info = copy.deepcopy({**input_dict, **metric})
         writer.add_hparams(
             hparam_dict=flatten_dict(input_dict),
             metric_dict=flatten_dict(metric),
         )
         results.append(info)
     writer.close()
-    
-    top_results = sorted(results, key=lambda r: r['metrics']['auc'], reverse=True)
+
+    top_results = sorted(results,
+                         key=lambda r: r['metrics']['auc'],
+                         reverse=True)
     logger.info(f'The best params settings: {top_results[0]}')
 
     if not Path(log_dir).exists():
