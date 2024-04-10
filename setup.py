@@ -13,6 +13,7 @@ setup(name='feature_analysis',
       author='Andy Wang',
       author_email='andy80136@gmail.com',
       description='Feature analysis and selection for training process',
+      license='MIT License',
       packages=find_packages(),
       install_requires=parse_requirement('requirements/core.txt'),
       extras_require={
