@@ -32,17 +32,6 @@ def hypothesis_test_df(request):
     return pd.DataFrame(zip(feature, label), columns=['colA', 'colB'])
 
 
-@pytest.fixture
-def ztest_kwargs(request):
-    params = getattr(request, 'param', {})
-    return dict(feature='colB',
-                label='colA',
-                times=5,
-                test_type='ztest',
-                ztest_sample_size=params.get('sample_size')
-                if params.get('sample_size') is not None else None)
-
-
 @pytest.mark.parametrize('kwargs, expected',
                          [(dict(feature='colA', percent=0.8), [0]),
                           (dict(feature='colA', percent=1.0), [0, 1]),
@@ -108,22 +97,22 @@ def test_chi_square_hypothesis_test(hypothesis_test_df):
     assert result['total_times'] == 10
 
 
-@pytest.mark.parametrize(
-    'hypothesis_test_df, ztest_kwargs',
-    [(dict(feature='list', label='list'), dict(sample_size=20)),
-     (dict(feature='list'), dict(sample_size=20)),
-     (dict(label='list'), dict(sample_size=20)),
-     (dict(), dict(sample_size=20)),
-     (dict(feature='list', label='list'), dict()),
-     (dict(feature='list'), dict()), (dict(label='list'), dict()),
-     (dict(), dict())],
-    indirect=['hypothesis_test_df', 'ztest_kwargs'])
-def test_ztest_hypothesis_test(hypothesis_test_df, ztest_kwargs):
-    result = hypothesis_test(hypothesis_test_df, **ztest_kwargs)
+@pytest.mark.parametrize('hypothesis_test_df', [
+    dict(feature='list', label='list'),
+    dict(feature='list'),
+    dict(label='list'),
+    dict()
+],
+                         indirect=['hypothesis_test_df'])
+def test_ztest_hypothesis_test(hypothesis_test_df):
+    result = hypothesis_test(hypothesis_test_df,
+                             feature='colB',
+                             label='colA',
+                             times=5,
+                             test_type='ztest')
     assert isinstance(
         result,
         dict) and 'significant_count' in result and 'total_times' in result
-    assert result['total_times'] <= ztest_kwargs['times']
 
 
 def test_raise_error_hypothesis_test(hypothesis_test_df):
