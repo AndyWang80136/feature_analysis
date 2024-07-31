@@ -1,5 +1,4 @@
 from collections import Counter
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -15,7 +14,6 @@ def hypothesis_test(user_df: pd.DataFrame,
                     feature: str,
                     label: str,
                     test_type: str,
-                    ztest_sample_size: Optional[int] = None,
                     times: int = 5,
                     random_seed: int = 42) -> dict:
     """hypothesis testing for Chi-Square test of indenpendence and z-test
@@ -25,23 +23,12 @@ def hypothesis_test(user_df: pd.DataFrame,
         feature: feature name
         label: label name
         test_type: 'chi_square_independence' or 'ztest'
-        ztest_sample_size": z-test sample_size per sample
         times: repeat times
         random_seed: random seed
 
     Returns:
         dict: total times and significant counts
     """
-    if test_type == 'ztest' and ztest_sample_size is None:
-        ztest_sample_size = int(
-            statsmodels.stats.power.zt_ind_solve_power(
-                effect_size=0.5,
-                nobs1=None,
-                alpha=0.05,
-                power=0.8,
-                ratio=1.0,
-                alternative='two-sided')) + 1
-
     np.random.seed(random_seed)
     sample_flag = True
     df = user_df.copy()
@@ -57,8 +44,7 @@ def hypothesis_test(user_df: pd.DataFrame,
     else:
         sample_flag = False
 
-    count = 0
-    total_count = times
+    p_values = []
     for _ in range(times):
 
         if sample_flag:
@@ -82,7 +68,7 @@ def hypothesis_test(user_df: pd.DataFrame,
             # make sure each cell is larger than 5 counts
             contingency = contingency[contingency >= 5].dropna(axis=1)
             result = chi2_contingency(contingency.T)
-            count += (result.pvalue <= 0.05)
+            p_values.append(result.pvalue)
         elif test_type == 'ztest':
             value = df[['sample_feature',
                         'sample_label']].groupby('sample_label').agg(
@@ -91,22 +77,20 @@ def hypothesis_test(user_df: pd.DataFrame,
             # remove outliers with 1.5IQR
             value_0, value_1 = np.asarray(remove_outliers(
                 value[0])), np.asarray(remove_outliers(value[1]))
-
-            sample_0 = np.asarray(
-                np.random.choice(value_0,
-                                 size=ztest_sample_size,
-                                 replace=False))
-            sample_1 = np.asarray(
-                np.random.choice(value_1,
-                                 size=ztest_sample_size,
-                                 replace=False))
-
-            _, pvalue = statsmodels.stats.weightstats.ztest(sample_0,
-                                                            sample_1,
+            _, pvalue = statsmodels.stats.weightstats.ztest(value_0,
+                                                            value_1,
                                                             value=0)
-            count += (pvalue <= 0.05)
+            p_values.append(pvalue)
         else:
             raise NotImplementedError(
                 f'Not support {test_type}, choose from (chi_square_independence, ztest)'
             )
-    return dict(total_times=total_count, significant_count=count)
+
+    if times > 1:
+        # apply multipletests correction
+        reject_array, *_ = statsmodels.stats.multitest.multipletests(
+            p_values, method='fdr_bh')
+        return dict(total_times=times, significant_count=reject_array.sum())
+    else:
+        return dict(total_times=times,
+                    significant_count=(np.asarray(p_values) <= 0.05).sum())
